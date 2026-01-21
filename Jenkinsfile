@@ -79,7 +79,7 @@ pipeline {
                 script {
                     deployService(
                         "service-1",
-                        "service-1\\target\\service-1.war"
+                        "service-1\\target\\service1.war"
                     )
                 }
             }
@@ -96,7 +96,7 @@ pipeline {
                 script {
                     deployService(
                         "service-2",
-                        "service-2\\target\\service-2.war"
+                        "service-2\\target\\service2.war"
                     )
                 }
             }
