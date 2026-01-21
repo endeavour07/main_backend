@@ -22,16 +22,26 @@ pipeline {
         stage('Detect Changed Services') {
             steps {
                 script {
-                    def diff = bat(
-                        script: 'git diff --name-only origin/main...HEAD',
-                        returnStdout: true
-                    ).trim()
 
-                    env.SERVICE1_CHANGED = diff.contains("service-1/") ? "true" : "false"
-                    env.SERVICE2_CHANGED = diff.contains("service-2/") ? "true" : "false"
+                    // FIRST BUILD HANDLING
+                    if (env.BUILD_NUMBER == '1') {
+                        env.SERVICE1_CHANGED = "true"
+                        env.SERVICE2_CHANGED = "true"
 
-                    echo "service-1 changed: ${env.SERVICE1_CHANGED}"
-                    echo "service-2 changed: ${env.SERVICE2_CHANGED}"
+                        echo "First build detected. Building all services."
+                    } 
+                    else {
+                        def diff = bat(
+                            script: 'git diff --name-only HEAD~1 HEAD',
+                            returnStdout: true
+                        ).trim()
+
+                        env.SERVICE1_CHANGED = diff.contains("service-1/") ? "true" : "false"
+                        env.SERVICE2_CHANGED = diff.contains("service-2/") ? "true" : "false"
+
+                        echo "service-1 changed: ${env.SERVICE1_CHANGED}"
+                        echo "service-2 changed: ${env.SERVICE2_CHANGED}"
+                    }
                 }
             }
         }
@@ -95,28 +105,42 @@ pipeline {
 
     post {
         success {
-            echo "Deployment completed successfully"
+            echo "✅ Build and Deployment completed successfully"
         }
         failure {
-            echo "Deployment failed"
+            echo "❌ Build or Deployment failed"
         }
     }
 }
 
-def deployService(String appName, String warPath) {
-    bat """
-        echo Deploying ${appName}
+/* ================= HELPER FUNCTION ================= */
 
-        if not exist "%BACKUP_ROOT%\\${appName}" mkdir "%BACKUP_ROOT%\\${appName}"
+def deployService(String appName, String warPath) {
+
+    bat """
+        echo ========================================
+        echo Deploying ${appName}
+        echo ========================================
+
+        REM Create backup directory if not exists
+        if not exist "%BACKUP_ROOT%\\${appName}" (
+            mkdir "%BACKUP_ROOT%\\${appName}"
+        )
+
+        REM Backup WAR with build number
         copy ${warPath} "%BACKUP_ROOT%\\${appName}\\${appName}_%BUILD_NUMBER%.war"
 
+        REM Remove old exploded directory
         if exist "%TOMCAT_HOME%\\webapps\\${appName}" (
             rmdir /S /Q "%TOMCAT_HOME%\\webapps\\${appName}"
         )
+
+        REM Remove old WAR
         if exist "%TOMCAT_HOME%\\webapps\\${appName}.war" (
             del "%TOMCAT_HOME%\\webapps\\${appName}.war"
         )
 
+        REM Hot deploy new WAR
         copy ${warPath} "%TOMCAT_HOME%\\webapps\\${appName}.war"
     """
 }
